@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sensor Installer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+manifest.json
+<style>
+body { font-family: sans-serif; padding: 16px; }
+button { padding: 16px; font-size: 18px; width: 100%; margin-top: 10px; }
+#video { width: 100%; display: none; margin-top: 10px; }
+#output { font-size: 20px; margin-top: 20px; }
+#status { font-size: 16px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h2>Sensor Installation Helper</h2>
+
+<button onclick="startScan('mapping')">Scan Mapping QR</button>
+<div id="status"></div>
+
+<button onclick="startScan('sensor')">Scan Sensor QR</button>
+<div id="output"></div>
+
+<video id="video" playsinline></video>
+
+jsqr.min.js</script>
+
+<script>
+let mapping = null;
+let mode = null;
+let stream = null;
+
+async function startScan(type) {
+    mode = type;
+    const video = document.getElementById("video");
+    video.style.display = "block";
+
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }});
+    video.srcObject = stream;
+    video.setAttribute("playsinline", true);
+    video.play();
+
+    requestAnimationFrame(scanLoop);
+}
+
+function scanLoop() {
+    const video = document.getElementById("video");
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        const qr = jsQR(img.data, img.width, img.height);
+        if (qr) {
+            handleScan(qr.data);
+            stopScan();
+            return;
+        }
+    }
+    requestAnimationFrame(scanLoop);
+}
+
+function stopScan() {
+    const video = document.getElementById("video");
+    video.style.display = "none";
+    if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+    }
+}
+
+function handleScan(text) {
+    if (mode === "mapping") {
+        try {
+            mapping = JSON.parse(text);
+            document.getElementById("status").innerText =
+                "✔ Mapping loaded (" + Object.keys(mapping).length + " entries)";
+        } catch {
+            document.getElementById("status").innerText = "❌ Invalid JSON mapping";
+        }
+        return;
+    }
+
+    if (!mapping) {
+        document.getElementById("status").innerText = "⚠ Scan mapping first.";
+        return;
+    }
+
+    const pos = mapping[text];
+    document.getElementById("output").innerHTML =
+        pos ? `<b>${text}</b> → ${pos}`
+            : `<b>${text}</b> → <span style="color:red">Not found</span>`;
+}
+
+// Register service worker
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+
+</body>
+</html>
