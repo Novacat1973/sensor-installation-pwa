@@ -104,6 +104,22 @@ async function startScan(type) {
     });
 
     video.srcObject = stream;
+
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    
+    // Auto-zoom if supported
+    if (capabilities.zoom) {
+        const max = capabilities.zoom.max;
+        const mid = (capabilities.zoom.max + capabilities.zoom.min) / 1.5;
+    
+        track.applyConstraints({
+            advanced: [{ zoom: mid }]
+        });
+    
+        console.log("Auto-zoom applied:", mid);
+    }
+    
     await video.play();
 
     // ----------------------------------------
