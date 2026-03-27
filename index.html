@@ -71,7 +71,17 @@ button:hover {
     <div id="output"></div>
 
     <div id="camera-wrapper">
-        <video id="video" playsinline></video>
+    <video id="video" playsinline></video>
+
+    <!-- Zoom Slider -->
+    <input 
+        type="range" 
+        id="zoomSlider" 
+        min="1" 
+        max="10" 
+        step="0.1" 
+        value="1"
+        style="width: 100%; margin-top: 15px; display:none;">
     </div>
 </div>
 
@@ -106,33 +116,37 @@ async function startScan(type) {
     video.srcObject = stream; 
     await video.play();
 
+    // Get track & capabilities
     const track = stream.getVideoTracks()[0];
     const capabilities = track.getCapabilities();
     
-    // Auto-zoom if supported
+    // Zoom slider behavior
+    const zoomSlider = document.getElementById("zoomSlider");
+    
     if (capabilities.zoom) {
-        const max = capabilities.zoom.max;
-        const mid = (capabilities.zoom.max + capabilities.zoom.min) / 1.5;
+        // Show the slider
+        zoomSlider.style.display = "block";
     
-        track.applyConstraints({
-            advanced: [{ zoom: mid }]
-        });
+        // Configure slider according to camera capability
+        zoomSlider.min = capabilities.zoom.min;
+        zoomSlider.max = capabilities.zoom.max;
+        zoomSlider.step = 0.1;
+        zoomSlider.value = capabilities.zoom.min;
     
-        console.log("Auto-zoom applied:", mid);
+        // Change zoom live
+        zoomSlider.oninput = async () => {
+            try {
+                await track.applyConstraints({
+                    advanced: [{ zoom: zoomSlider.value }]
+                });
+            } catch (err) {
+                console.warn("Zoom failed:", err);
+            }
+        };
+    } else {
+        console.log("Zoom not supported on this device.");
     }
 
-    // ----------------------------------------
-    // OPTIONAL CLOSE-RANGE FOCUS BOOST
-    // ----------------------------------------
-    try {
-        await track.applyConstraints({
-            advanced: [{ focusDistance: 0.1 }]
-        });
-        console.log("Near-focus boost applied");
-    } catch (err) {
-        console.warn("Near-focus not supported:", err);
-    }
-    // ----------------------------------------
 
     requestAnimationFrame(scanLoop);
 }
