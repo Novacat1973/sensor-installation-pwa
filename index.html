@@ -5,214 +5,76 @@
 <title>Sensor Installer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="manifest" href="manifest.json">
-<script src="jsqr.min.js"></script>
-
+<script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
-body {
-    font-family: sans-serif;
-    padding: 20px;
-    background: #f4f4f7;
-    color: #222;
-    margin: 0;
-}
-h2 {
-    margin-bottom: 20px;
-    text-align: center;
-    font-size: 24px;
-}
-.container {
-    max-width: 500px;
-    margin: auto;
-}
-button {
-    padding: 16px;
-    font-size: 18px;
-    width: 100%;
-    border: none;
-    border-radius: 10px;
-    background: #007bff;
-    color: white;
-    margin-top: 12px;
-    cursor: pointer;
-}
-button:hover {
-    background: #005fcc;
-}
-#status, #output {
-    margin-top: 16px;
-    padding: 12px;
-    background: white;
-    border-radius: 10px;
-    min-height: 40px;
-}
-#camera-wrapper {
-    width: 100%;
-    margin-top: 20px;
-    display: none;
-}
-#video {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    background: black;
-    border-radius: 12px;
-    object-fit: cover;
-}
+body { font-family: sans-serif; padding: 20px; background: #f4f4f7; color: #222; margin: 0; }
+h2 { margin-bottom: 20px; text-align: center; font-size: 24px; }
+.container { max-width: 500px; margin: auto; }
+button { padding: 16px; font-size: 18px; width: 100%; border: none; border-radius: 10px; background: #007bff; color: white; margin-top: 12px; cursor: pointer; }
+button:hover { background: #005fcc; }
+#status, #output { margin-top: 16px; padding: 12px; background: white; border-radius: 10px; min-height: 40px; }
+#camera-wrapper { width: 100%; margin-top: 20px; display: none; }
+#video { width: 100%; aspect-ratio: 1 / 1; background: black; border-radius: 12px; object-fit: cover; }
+#zoomSlider { width: 100%; margin-top: 12px; display:none; }
 </style>
 </head>
-
 <body>
 <div class="container">
-    <h2>Sensor Installation Helper</h2>
-
-    <button onclick="startScan('mapping')">Scan Mapping QR</button>
-    <div id="status"></div>
-
-    <button onclick="startScan('sensor')">Scan Sensor QR</button>
-    <div id="output"></div>
-
-    <div id="camera-wrapper">
-    <video id="video" playsinline></video>
-
-    <!-- Zoom Slider -->
-    <input 
-        type="range" 
-        id="zoomSlider" 
-        min="1" 
-        max="10" 
-        step="0.1" 
-        value="1"
-        style="width: 100%; margin-top: 15px; display:none;">
-    </div>
+<h2>Sensor Installation Helper</h2>
+<button onclick="startScan('mapping')">Scan Mapping QR</button>
+<div id="status"></div>
+<button onclick="startScan('sensor')">Scan Sensor QR</button>
+<div id="output"></div>
+<div id="camera-wrapper">
+<video id="video" playsinline></video>
+<input type="range" id="zoomSlider" min="1" max="10" step="0.1" value="1">
 </div>
-
+</div>
 <script>
 let mapping = null;
 let mode = null;
+let codeReader = null;
 let stream = null;
-
 async function startScan(type) {
-    mode = type;
-
-    const wrapper = document.getElementById("camera-wrapper");
-    const video = document.getElementById("video");
-    wrapper.style.display = "block";
-
-    // ------------------------
-    // CAMERA SETTINGS
-    // ------------------------
-    stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: "environment",
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            focusMode: "continuous",
-            advanced: [
-                { focusMode: "continuous" },
-                { focusMode: "auto" }
-            ]
-        }
-    });
-
-    video.srcObject = stream; 
-    await video.play();
-
-    // Get track & capabilities
-    const track = stream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    
-    // Zoom slider behavior
-    const zoomSlider = document.getElementById("zoomSlider");
-    
-    if (capabilities.zoom) {
-        // Show the slider
-        zoomSlider.style.display = "block";
-    
-        // Configure slider according to camera capability
-        zoomSlider.min = capabilities.zoom.min;
-        zoomSlider.max = capabilities.zoom.max;
-        zoomSlider.step = 0.1;
-        zoomSlider.value = capabilities.zoom.min;
-    
-        // Change zoom live
-        zoomSlider.oninput = async () => {
-            try {
-                await track.applyConstraints({
-                    advanced: [{ zoom: zoomSlider.value }]
-                });
-            } catch (err) {
-                console.warn("Zoom failed:", err);
-            }
-        };
-    } else {
-        console.log("Zoom not supported on this device.");
-    }
-
-
-    requestAnimationFrame(scanLoop);
+ mode = type;
+ document.getElementById('camera-wrapper').style.display = 'block';
+ const video = document.getElementById('video');
+ codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+ stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }});
+ video.srcObject = stream;
+ await video.play();
+ const track = stream.getVideoTracks()[0];
+ const caps = track.getCapabilities();
+ const slider = document.getElementById('zoomSlider');
+ if (caps.zoom) {
+   slider.style.display = 'block';
+   slider.min = caps.zoom.min;
+   slider.max = caps.zoom.max;
+   slider.value = caps.zoom.min;
+   slider.oninput = async () => {
+      await track.applyConstraints({ advanced: [{ zoom: slider.value }] });
+   };
+ }
+ codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+   if (result) { handleScan(result.text); stopScan(); }
+ });
 }
-
-function scanLoop() {
-    const video = document.getElementById("video");
-
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0);
-
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const qr = jsQR(img.data, img.width, img.height);
-
-        if (qr) {
-            handleScan(qr.data);
-            stopScan();
-            return;
-        }
-    }
-
-    requestAnimationFrame(scanLoop);
-}
-
 function stopScan() {
-    const wrapper = document.getElementById("camera-wrapper");
-    wrapper.style.display = "none";
-
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-    }
+ document.getElementById('camera-wrapper').style.display = 'none';
+ if (codeReader) codeReader.reset();
+ if (stream) stream.getTracks().forEach(t => t.stop());
 }
-
 function handleScan(text) {
-    if (mode === "mapping") {
-        try {
-            mapping = JSON.parse(text);
-            document.getElementById("status").innerText =
-                "✔ Mapping loaded (" + Object.keys(mapping).length + " entries)";
-        } catch {
-            document.getElementById("status").innerText = "❌ Invalid JSON mapping";
-        }
-        return;
-    }
-
-    if (!mapping) {
-        document.getElementById("status").innerText = "⚠ Scan mapping first.";
-        return;
-    }
-
-    const pos = mapping[text];
-    document.getElementById("output").innerHTML =
-        pos
-        ? `<b>${text}</b> → ${pos}`
-        : `<b>${text}</b> → <span style="color:red">Not found</span>`;
+ if (mode === 'mapping') {
+   try { mapping = JSON.parse(text); document.getElementById('status').innerText = '✔ Mapping loaded (' + Object.keys(mapping).length + ' entries)'; }
+   catch { document.getElementById('status').innerText = '❌ Invalid JSON mapping'; }
+   return;
+ }
+ if (!mapping) { document.getElementById('status').innerText = '⚠ Scan mapping first.'; return; }
+ const pos = mapping[text];
+ document.getElementById('output').innerHTML = pos ? `<b>${text}</b> → ${pos}` : `<b>${text}</b> → <span style="color:red">Not found</span>`;
 }
-
-// PWA service worker
-if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js");
-}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
 </script>
-
 </body>
 </html>
