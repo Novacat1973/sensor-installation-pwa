@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <title>Sensor Installer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-manifest.json
+<link rel="manifest" href="manifest.json">
+<script src="jsqr.min.js"></script>
 <style>
 body { font-family: sans-serif; padding: 16px; }
 button { padding: 16px; font-size: 18px; width: 100%; margin-top: 10px; }
@@ -13,6 +14,7 @@ button { padding: 16px; font-size: 18px; width: 100%; margin-top: 10px; }
 #status { font-size: 16px; margin-top: 10px; }
 </style>
 </head>
+
 <body>
 
 <h2>Sensor Installation Helper</h2>
@@ -24,8 +26,6 @@ button { padding: 16px; font-size: 18px; width: 100%; margin-top: 10px; }
 <div id="output"></div>
 
 <video id="video" playsinline></video>
-
-jsqr.min.js</script>
 
 <script>
 let mapping = null;
