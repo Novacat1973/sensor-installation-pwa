@@ -15,18 +15,15 @@ body {
     color: #222;
     margin: 0;
 }
-
 h2 {
     margin-bottom: 20px;
     text-align: center;
     font-size: 24px;
 }
-
 .container {
     max-width: 500px;
     margin: auto;
 }
-
 button {
     padding: 16px;
     font-size: 18px;
@@ -38,11 +35,9 @@ button {
     margin-top: 12px;
     cursor: pointer;
 }
-
 button:hover {
     background: #005fcc;
 }
-
 #status, #output {
     margin-top: 16px;
     padding: 12px;
@@ -50,16 +45,14 @@ button:hover {
     border-radius: 10px;
     min-height: 40px;
 }
-
 #camera-wrapper {
     width: 100%;
     margin-top: 20px;
     display: none;
 }
-
 #video {
     width: 100%;
-    aspect-ratio: 1 / 1; /* makes video area square */
+    aspect-ratio: 1 / 1;
     background: black;
     border-radius: 12px;
     object-fit: cover;
@@ -89,17 +82,43 @@ let stream = null;
 
 async function startScan(type) {
     mode = type;
+
     const wrapper = document.getElementById("camera-wrapper");
     const video = document.getElementById("video");
-
     wrapper.style.display = "block";
 
+    // ------------------------
+    // CAMERA SETTINGS
+    // ------------------------
     stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+        video: {
+            facingMode: "environment",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            focusMode: "continuous",
+            advanced: [
+                { focusMode: "continuous" },
+                { focusMode: "auto" }
+            ]
+        }
     });
 
     video.srcObject = stream;
-    video.play();
+    await video.play();
+
+    // ----------------------------------------
+    // OPTIONAL CLOSE-RANGE FOCUS BOOST
+    // ----------------------------------------
+    const track = stream.getVideoTracks()[0];
+    try {
+        await track.applyConstraints({
+            advanced: [{ focusDistance: 0.1 }]
+        });
+        console.log("Near-focus boost applied");
+    } catch (err) {
+        console.warn("Near-focus not supported:", err);
+    }
+    // ----------------------------------------
 
     requestAnimationFrame(scanLoop);
 }
@@ -124,6 +143,7 @@ function scanLoop() {
             return;
         }
     }
+
     requestAnimationFrame(scanLoop);
 }
 
@@ -155,11 +175,12 @@ function handleScan(text) {
 
     const pos = mapping[text];
     document.getElementById("output").innerHTML =
-        pos ? `<b>${text}</b> → ${pos}`
-            : `<b>${text}</b> → <span style="color:red">Not found</span>`;
+        pos
+        ? `<b>${text}</b> → ${pos}`
+        : `<b>${text}</b> → <span style="color:red">Not found</span>`;
 }
 
-// Register PWA service worker (offline mode)
+// PWA service worker
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("service-worker.js");
 }
