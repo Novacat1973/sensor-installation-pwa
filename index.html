@@ -6,26 +6,81 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="manifest" href="manifest.json">
 <script src="jsqr.min.js"></script>
+
 <style>
-body { font-family: sans-serif; padding: 16px; }
-button { padding: 16px; font-size: 18px; width: 100%; margin-top: 10px; }
-#video { width: 100%; display: none; margin-top: 10px; }
-#output { font-size: 20px; margin-top: 20px; }
-#status { font-size: 16px; margin-top: 10px; }
+body {
+    font-family: sans-serif;
+    padding: 20px;
+    background: #f4f4f7;
+    color: #222;
+    margin: 0;
+}
+
+h2 {
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 24px;
+}
+
+.container {
+    max-width: 500px;
+    margin: auto;
+}
+
+button {
+    padding: 16px;
+    font-size: 18px;
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    background: #007bff;
+    color: white;
+    margin-top: 12px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #005fcc;
+}
+
+#status, #output {
+    margin-top: 16px;
+    padding: 12px;
+    background: white;
+    border-radius: 10px;
+    min-height: 40px;
+}
+
+#camera-wrapper {
+    width: 100%;
+    margin-top: 20px;
+    display: none;
+}
+
+#video {
+    width: 100%;
+    aspect-ratio: 1 / 1; /* makes video area square */
+    background: black;
+    border-radius: 12px;
+    object-fit: cover;
+}
 </style>
 </head>
 
 <body>
+<div class="container">
+    <h2>Sensor Installation Helper</h2>
 
-<h2>Sensor Installation Helper</h2>
+    <button onclick="startScan('mapping')">Scan Mapping QR</button>
+    <div id="status"></div>
 
-<button onclick="startScan('mapping')">Scan Mapping QR</button>
-<div id="status"></div>
+    <button onclick="startScan('sensor')">Scan Sensor QR</button>
+    <div id="output"></div>
 
-<button onclick="startScan('sensor')">Scan Sensor QR</button>
-<div id="output"></div>
-
-<video id="video" playsinline></video>
+    <div id="camera-wrapper">
+        <video id="video" playsinline></video>
+    </div>
+</div>
 
 <script>
 let mapping = null;
@@ -34,12 +89,16 @@ let stream = null;
 
 async function startScan(type) {
     mode = type;
+    const wrapper = document.getElementById("camera-wrapper");
     const video = document.getElementById("video");
-    video.style.display = "block";
 
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }});
+    wrapper.style.display = "block";
+
+    stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+    });
+
     video.srcObject = stream;
-    video.setAttribute("playsinline", true);
     video.play();
 
     requestAnimationFrame(scanLoop);
@@ -47,15 +106,18 @@ async function startScan(type) {
 
 function scanLoop() {
     const video = document.getElementById("video");
+
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
         const canvas = document.createElement("canvas");
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+
         const ctx = canvas.getContext("2d");
         ctx.drawImage(video, 0, 0);
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const qr = jsQR(img.data, img.width, img.height);
+
         if (qr) {
             handleScan(qr.data);
             stopScan();
@@ -66,10 +128,11 @@ function scanLoop() {
 }
 
 function stopScan() {
-    const video = document.getElementById("video");
-    video.style.display = "none";
+    const wrapper = document.getElementById("camera-wrapper");
+    wrapper.style.display = "none";
+
     if (stream) {
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(track => track.stop());
     }
 }
 
@@ -96,7 +159,7 @@ function handleScan(text) {
             : `<b>${text}</b> → <span style="color:red">Not found</span>`;
 }
 
-// Register service worker
+// Register PWA service worker (offline mode)
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("service-worker.js");
 }
